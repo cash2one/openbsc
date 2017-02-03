@@ -33,6 +33,7 @@
 #include <openbsc/gsm_subscriber.h>
 #include <openbsc/debug.h>
 #include <openbsc/osmo_msc.h>
+#include <openbsc/vlr.h>
 
 /* Declarations of USSD strings to be recognised */
 const char USSD_TEXT_OWN_NUMBER[] = "*#100#";
@@ -52,6 +53,8 @@ int handle_rcv_ussd(struct gsm_subscriber_connection *conn, struct msgb *msg)
 	 * to keep the connection alive due ot ongoing USSD exchange.
 	 * As we answer everytying synchronously so far, there's no need
 	 * yet */
+
+	cm_service_request_concludes(conn, msg);
 
 	memset(&req, 0, sizeof(req));
 	gh = msgb_l3(msg);
@@ -73,6 +76,7 @@ int handle_rcv_ussd(struct gsm_subscriber_connection *conn, struct msgb *msg)
 		return 0;
 	}
 
+	msc_subscr_conn_communicating(conn);
 	if (!strcmp(USSD_TEXT_OWN_NUMBER, (const char *)req.ussd_text)) {
 		DEBUGP(DMM, "USSD: Own number requested\n");
 		rc = send_own_number(conn, msg, &req);
@@ -87,8 +91,11 @@ int handle_rcv_ussd(struct gsm_subscriber_connection *conn, struct msgb *msg)
 /* A network-specific handler function */
 static int send_own_number(struct gsm_subscriber_connection *conn, const struct msgb *msg, const struct ss_request *req)
 {
-	char *own_number = conn->subscr->extension;
+	char *own_number = conn->vsub->msisdn;
 	char response_string[GSM_EXTENSION_LENGTH + 20];
+
+	DEBUGP(DMM, "%s: MSISDN = %s\n", vlr_subscr_name(conn->vsub),
+	       own_number);
 
 	/* Need trailing CR as EOT character */
 	snprintf(response_string, sizeof(response_string), "Your extension is %s\r", own_number);
